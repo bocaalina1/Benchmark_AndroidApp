@@ -1,4 +1,3 @@
-
 package com.example.myapplication
 
 import android.graphics.Color
@@ -18,7 +17,7 @@ class testCpuWithSorting : AppCompatActivity() {
 
     private lateinit var binding: ActivityTestCpuBinding
     private val arraySize = listOf(1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 15000, 20000)
-
+    private val testsPerSize = 7
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,93 +25,133 @@ class testCpuWithSorting : AppCompatActivity() {
         setContentView(binding.root)
         title = "CPU Benchmark"
 
-        setUpChart(binding.chartOperations, "Operations on Array Size","Operations")
-        setUpChart(binding.chartTime, "Time to Sort Array Size","Time (ms)")
+        setUpChart(binding.chartBubbleTime, "Bubble Sort - Time","Time (ms)")
+        setUpChart(binding.chartOperations, "Bubble Sort - Operations","Operations")
+        setUpChart(binding.chartTime, "Heap Sort - Time","Time (ms)")
+        setUpChart(binding.chartHeapOps, "Heap Sort - Operations","Operations")
+        setUpChart(binding.chartBaseline, "Bubble Sort - Baseline","Time (ms)")
 
         binding.startBenchmarkButton.setOnClickListener {
             runBenchmark()
         }
     }
-    private fun setUpChart(chart: LineChart, title: String, yAxis: String) {
-    chart.apply{
-        description.text = title
-        description.textSize = 15f
-        setTouchEnabled(true)
-        isDragEnabled = true
-        setScaleEnabled(true)
-        setPinchZoom(true)
 
-        xAxis.apply {
-            position = XAxis.XAxisPosition.BOTTOM
-            setDrawGridLines(true)
-            granularity = 1f
-            valueFormatter = object : ValueFormatter() {
-                override fun getFormattedValue(value: Float): String {
-                    val index = value.toInt()
-                    return if (index >= 0 && index < arraySize.size) {
-                        arraySize[index].toString()
-                    } else {
-                        ""
+    private fun setUpChart(chart: LineChart, title: String, yAxis: String) {
+        chart.apply{
+            description.text = title
+            description.textSize = 15f
+            setTouchEnabled(true)
+            isDragEnabled = true
+            setScaleEnabled(true)
+            setPinchZoom(true)
+
+            xAxis.apply {
+                position = XAxis.XAxisPosition.BOTTOM
+                setDrawGridLines(true)
+                granularity = 1f
+                valueFormatter = object : ValueFormatter() {
+                    override fun getFormattedValue(value: Float): String {
+                        val index = value.toInt()
+                        return if (index >= 0 && index < arraySize.size) {
+                            arraySize[index].toString()
+                        } else {
+                            ""
+                        }
                     }
                 }
             }
-        }
 
-        axisLeft.apply{
-            setDrawGridLines(true)
-            axisMinimum = 0f
+            axisLeft.apply{
+                setDrawGridLines(true)
+                axisMinimum = 0f
+            }
+            axisRight.isEnabled = false
+            legend.apply {
+                isEnabled = true
+                textSize = 13f
+            }
         }
-        axisRight.isEnabled = false
-        legend.apply {
-            isEnabled = true
-            textSize = 13f
-        }
-    }
     }
 
     private fun runBenchmark() {
-        // Show progress bar and disable button
         binding.progressBar.visibility = View.VISIBLE
         binding.resultsTextview.text = "Running..."
         binding.startBenchmarkButton.isEnabled = false
 
-        val bubbleResults = mutableListOf<BenchmarkResult>()
-        val heapResults = mutableListOf<BenchmarkResult>()
+        val bubbleResults = mutableListOf<AverageBenchmarkResult>()
+        val heapResults = mutableListOf<AverageBenchmarkResult>()
 
-        // Run the C++ function on a background thread to avoid freezing the UI
         GlobalScope.launch(Dispatchers.Default) {
-            // Call the native function with an array size of 10,000
-            //val resultString = runAdvanceSort(10000)
-            var currentProgress = 0
+            var totalTests = 0
+            var completedTests = 0
+
+            totalTests = arraySize.size * testsPerSize
+
             for (size in arraySize) {
-                currentProgress++
-                // Switch back to the main thread to update the UI
-                withContext(Dispatchers.Main) {
-                    binding.resultsTextview.text =
-                        "Running benchmarks...\n\n" +
-                                "Progress: $currentProgress/${arraySize.size}\n" +
-                                "Current size: $size elements"
+                val bubbleTestResults = mutableListOf<BenchmarkResult>()
+                val heapTestResults = mutableListOf<BenchmarkResult>()
+
+                for (test in 1..testsPerSize) {
+                    completedTests++
+
+                    withContext(Dispatchers.Main) {
+                        binding.resultsTextview.text =
+                            "Running benchmarks...\n\n" +
+                                    "Progress: $completedTests/$totalTests\n" +
+                                    "Array Size: $size elements\n" +
+                                    "Test: $test/$testsPerSize"
+                    }
+
+                    val resultString = runAdvanceSort(size)
+                    val (bubbleResult, heapResult) = parseResults(resultString, size)
+                    bubbleTestResults.add(bubbleResult)
+                    heapTestResults.add(heapResult)
+
+                    delay(50)
                 }
-                val resultString = runAdvanceSort(size)
-                val (bubbleResult, heapResult) = parseResults(resultString,size)
-                bubbleResults.add(bubbleResult)
-                heapResults.add(heapResult)
-                delay(100)
+
+                // Calculate averages for this size
+                val bubbleAvg = calculateAverage(bubbleTestResults)
+                val heapAvg = calculateAverage(heapTestResults)
+
+                bubbleResults.add(bubbleAvg)
+                heapResults.add(heapAvg)
             }
-            // Switch back to main thread to update UI
+
             withContext(Dispatchers.Main) {
                 displayResults(bubbleResults, heapResults)
                 displayGraphs(bubbleResults, heapResults)
                 binding.progressBar.visibility = View.GONE
                 binding.startBenchmarkButton.isEnabled = true
             }
-
         }
     }
-    private fun parseResults(result: String, arraySize: Int): Pair<BenchmarkResult, BenchmarkResult> {
-        // Expected format: "bubble_ms,bubble_ops;heap_ms,heap_ops"
-        val parts = result.split(';')
 
+    private fun calculateAverage(results: List<BenchmarkResult>): AverageBenchmarkResult {
+        val avgTime = results.map { it.timeMs }.average()
+        val avgOps = results.map { it.operations }.average()
+        val stdDevTime = calculateStdDev(results.map { it.timeMs.toDouble() })
+        val stdDevOps = calculateStdDev(results.map { it.operations.toDouble() })
+
+        return AverageBenchmarkResult(
+            algorithm = results[0].algorithm,
+            arraySize = results[0].arraySize,
+            avgTimeMs = avgTime,
+            avgOperations = avgOps,
+            stdDevTime = stdDevTime,
+            stdDevOps = stdDevOps,
+            testsRun = results.size
+        )
+    }
+
+    private fun calculateStdDev(values: List<Double>): Double {
+        val mean = values.average()
+        val variance = values.map { (it - mean) * (it - mean) }.average()
+        return kotlin.math.sqrt(variance)
+    }
+
+    private fun parseResults(result: String, arraySize: Int): Pair<BenchmarkResult, BenchmarkResult> {
+        val parts = result.split(';')
         val bubbleParts = parts[0].split(',')
         val heapParts = parts[1].split(',')
 
@@ -132,132 +171,197 @@ class testCpuWithSorting : AppCompatActivity() {
 
         return Pair(bubbleResult, heapResult)
     }
-    private fun displayResults(bubbleResults: List<BenchmarkResult>, heapResults: List<BenchmarkResult>) {
+
+    private fun displayResults(bubbleResults: List<AverageBenchmarkResult>, heapResults: List<AverageBenchmarkResult>) {
         val sb = StringBuilder()
-        sb.append("=== BENCHMARK RESULTS ===\n\n")
+        sb.append("RESULTS (Avg of $testsPerSize tests)\n")
+        sb.append("════════════════════════════════════\n\n")
 
-        sb.append("BUBBLE SORT:\n")
-        sb.append("-".repeat(50)).append("\n")
+        sb.append("BUBBLE SORT\n")
+        sb.append("─────────────────────────────────\n")
+        sb.append("Size    Time(ms)  Ops\n")
         for (result in bubbleResults) {
-            sb.append("Size: ${result.arraySize} | ")
-            sb.append("Time: ${result.timeMs}ms | ")
-            sb.append("Ops: ${result.operations}\n")
+            sb.append(String.format("%-7d %-9.1f %.0f\n",
+                result.arraySize,
+                result.avgTimeMs,
+                result.avgOperations
+            ))
         }
 
-        sb.append("\n")
-        sb.append("HEAP SORT:\n")
-        sb.append("-".repeat(50)).append("\n")
+        sb.append("\nHEAP SORT\n")
+        sb.append("─────────────────────────────────\n")
+        sb.append("Size    Time(ms)  Ops\n")
         for (result in heapResults) {
-            sb.append("Size: ${result.arraySize} | ")
-            sb.append("Time: ${result.timeMs}ms | ")
-            sb.append("Ops: ${result.operations}\n")
+            sb.append(String.format("%-7d %-9.1f %.0f\n",
+                result.arraySize,
+                result.avgTimeMs,
+                result.avgOperations
+            ))
         }
 
-        sb.append("\n")
-        sb.append("PERFORMANCE COMPARISON:\n")
-        sb.append("-".repeat(50)).append("\n")
+        sb.append("\nCOMPARISON\n")
+        sb.append("─────────────────────────────────\n")
+        sb.append("Size    Bubble   Heap   Speedup\n")
+        for (i in bubbleResults.indices) {
+            val bubbleTime = bubbleResults[i].avgTimeMs
+            val heapTime = heapResults[i].avgTimeMs
+            val speedup = String.format("%.2fx", bubbleTime / heapTime)
 
-        // Calculate averages
-        val avgBubbleTime = bubbleResults.map { it.timeMs }.average()
-        val avgHeapTime = heapResults.map { it.timeMs }.average()
-        val avgBubbleOps = bubbleResults.map { it.operations }.average()
-        val avgHeapOps = heapResults.map { it.operations }.average()
+            sb.append(String.format("%-7d %-8.1f %-6.1f %s\n",
+                bubbleResults[i].arraySize,
+                bubbleTime,
+                heapTime,
+                speedup
+            ))
+        }
 
-        sb.append("Avg Time - Bubble: ${avgBubbleTime.toLong()}ms, Heap: ${avgHeapTime.toLong()}ms\n")
-        sb.append("Avg Ops - Bubble: ${avgBubbleOps.toLong()}, Heap: ${avgHeapOps.toLong()}\n")
+        // Find best bubble sort size
+        val bestBubbleResult = bubbleResults.minByOrNull { it.avgTimeMs }
+        val bestBubbleTime = bestBubbleResult?.avgTimeMs ?: 0.0
 
-        val timeDiff = ((avgBubbleTime / avgHeapTime - 1) * 100).toInt()
-        val opsDiff = ((avgBubbleOps / avgHeapOps - 1) * 100).toInt()
+        sb.append("\nBASELINE ANALYSIS\n")
+        sb.append("─────────────────────────────────\n")
+        sb.append("Best Bubble: ${bestBubbleResult?.arraySize}(${bestBubbleTime.toLong()}ms)\n\n")
+        sb.append("Size   Variance\n")
 
-        sb.append("\nHeap Sort is ${timeDiff} times faster\n")
-        sb.append("Heap Sort uses ${opsDiff} times fewer operations\n")
+        for (result in bubbleResults) {
+            val variance = ((result.avgTimeMs - bestBubbleTime) / bestBubbleTime * 100)
+            sb.append(String.format("%-6d %+6.1f%%\n",
+                result.arraySize,
+                variance
+            ))
+        }
 
         binding.resultsTextview.text = sb.toString()
     }
 
-    private fun displayGraphs(bubbleResults: List<BenchmarkResult>, heapResults: List<BenchmarkResult>) {
-        val bubbleOpsEntries = bubbleResults.mapIndexed { index, result ->
-            Entry(index.toFloat(), result.operations.toFloat())
-        }
-        val heapOpsEntries = heapResults.mapIndexed { index, result ->
-            Entry(index.toFloat(), result.operations.toFloat())
-        }
-
+    private fun displayGraphs(bubbleResults: List<AverageBenchmarkResult>, heapResults: List<AverageBenchmarkResult>) {
+        // Bubble Sort Time
         val bubbleTimeEntries = bubbleResults.mapIndexed { index, result ->
-            Entry(index.toFloat(), result.timeMs.toFloat())
-        }
-        val heapTimeEntries = heapResults.mapIndexed { index, result ->
-            Entry(index.toFloat(), result.timeMs.toFloat())
+            Entry(index.toFloat(), result.avgTimeMs.toFloat())
         }
 
-        // Create Operations chart
-        createChart(
+        // Heap Sort Time
+        val heapTimeEntries = heapResults.mapIndexed { index, result ->
+            Entry(index.toFloat(), result.avgTimeMs.toFloat())
+        }
+
+        // Bubble Sort Operations
+        val bubbleOpsEntries = bubbleResults.mapIndexed { index, result ->
+            Entry(index.toFloat(), result.avgOperations.toFloat())
+        }
+
+        // Heap Sort Operations
+        val heapOpsEntries = heapResults.mapIndexed { index, result ->
+            Entry(index.toFloat(), result.avgOperations.toFloat())
+        }
+
+        // Find best bubble sort time for EACH size (baseline for that size)
+        val bestBubbleTimePerSize = bubbleResults.map { it.avgTimeMs }
+
+        // Calculate variance from each size's baseline
+        val varianceFromBaselineEntries = bubbleResults.mapIndexed { index, result ->
+            val bestTime = bestBubbleTimePerSize.minOrNull() ?: 1.0
+            val percentageDiff = ((result.avgTimeMs - bestTime) / bestTime * 100).toFloat()
+            Entry(index.toFloat(), percentageDiff)
+        }
+
+        // Create individual charts
+        createSingleChart(
+            binding.chartBubbleTime,
+            bubbleTimeEntries,
+            "Bubble Sort - Time",
+            Color.rgb(255, 102, 102)
+        )
+
+        createSingleChart(
             binding.chartOperations,
             bubbleOpsEntries,
-            heapOpsEntries,
-            "Bubble Sort",
-            "Heap Sort",
-            Color.rgb(255, 102, 102),  // Red
-            Color.rgb(102, 178, 255)   // Blue
+            "Bubble Sort - Operations",
+            Color.rgb(255, 102, 102)
         )
 
-        // Create Time chart
-        createChart(
+        createSingleChart(
             binding.chartTime,
-            bubbleTimeEntries,
             heapTimeEntries,
-            "Bubble Sort",
-            "Heap Sort",
-            Color.rgb(255, 102, 102),  // Red
-            Color.rgb(102, 178, 255)   // Blue
+            "Heap Sort - Time",
+            Color.rgb(102, 178, 255)
         )
 
-        // Show charts
+        createSingleChart(
+            binding.chartHeapOps,
+            heapOpsEntries,
+            "Heap Sort - Operations",
+            Color.rgb(102, 178, 255)
+        )
+
+        // Create baseline chart showing variance from best bubble sort time
+        createVarianceFromBaselineChart(
+            binding.chartBaseline,
+            bubbleTimeEntries,
+            varianceFromBaselineEntries
+        )
+
+        binding.chartBubbleTime.visibility = View.VISIBLE
         binding.chartOperations.visibility = View.VISIBLE
         binding.chartTime.visibility = View.VISIBLE
+        binding.chartHeapOps.visibility = View.VISIBLE
+        binding.chartBaseline.visibility = View.VISIBLE
     }
 
-    private fun createChart(
-        chart: LineChart,
-        data1: List<Entry>,
-        data2: List<Entry>,
-        label1: String,
-        label2: String,
-        color1: Int,
-        color2: Int
-    ) {
-        // Create datasets
-        val dataSet1 = LineDataSet(data1, label1).apply {
-            color = color1
-            setCircleColor(color1)
+    private fun createSingleChart(chart: LineChart, data: List<Entry>, label: String, color: Int) {
+        val dataSet = LineDataSet(data, label).apply {
+            this.color = color
+            setCircleColor(color)
             lineWidth = 2.5f
-            circleRadius = 4f
+            circleRadius = 5f
             setDrawCircleHole(false)
             valueTextSize = 9f
             setDrawValues(false)
             mode = LineDataSet.Mode.CUBIC_BEZIER
         }
 
-        val dataSet2 = LineDataSet(data2, label2).apply {
-            color = color2
-            setCircleColor(color2)
-            lineWidth = 2.5f
-            circleRadius = 4f
-            setDrawCircleHole(false)
-            valueTextSize = 9f
-            setDrawValues(false)
-            mode = LineDataSet.Mode.CUBIC_BEZIER
-        }
-
-        // Set data to chart
-        val lineData = LineData(dataSet1, dataSet2)
+        val lineData = LineData(dataSet)
         chart.data = lineData
-        chart.invalidate()  // Refresh chart
+        chart.invalidate()
     }
 
-    /**
-     * Data class to hold benchmark results
-     */
+    private fun createVarianceFromBaselineChart(chart: LineChart, bubbleTimeData: List<Entry>, varianceData: List<Entry>) {
+        val bubbleDataSet = LineDataSet(bubbleTimeData, "Bubble Time (ms)").apply {
+            color = Color.rgb(255, 102, 102)
+            setCircleColor(Color.rgb(255, 102, 102))
+            lineWidth = 2.5f
+            circleRadius = 5f
+            setDrawCircleHole(false)
+            valueTextSize = 9f
+            setDrawValues(false)
+            mode = LineDataSet.Mode.CUBIC_BEZIER
+            axisDependency = com.github.mikephil.charting.components.YAxis.AxisDependency.LEFT
+        }
+
+        val varianceDataSet = LineDataSet(varianceData, "Variance from Best (%)").apply {
+            color = Color.rgb(76, 175, 80)
+            setCircleColor(Color.rgb(76, 175, 80))
+            lineWidth = 2.5f
+            circleRadius = 5f
+            setDrawCircleHole(false)
+            valueTextSize = 9f
+            setDrawValues(false)
+            mode = LineDataSet.Mode.CUBIC_BEZIER
+            axisDependency = com.github.mikephil.charting.components.YAxis.AxisDependency.RIGHT
+        }
+
+        val lineData = LineData(bubbleDataSet, varianceDataSet)
+        chart.data = lineData
+
+        // Enable right axis for variance
+        chart.axisRight.isEnabled = true
+        chart.axisRight.setDrawGridLines(true)
+        chart.axisRight.axisMinimum = 0f
+
+        chart.invalidate()
+    }
+
     data class BenchmarkResult(
         val algorithm: String,
         val arraySize: Int,
@@ -265,9 +369,16 @@ class testCpuWithSorting : AppCompatActivity() {
         val operations: Long
     )
 
-    /**
-     * Native function declaration
-     */
+    data class AverageBenchmarkResult(
+        val algorithm: String,
+        val arraySize: Int,
+        val avgTimeMs: Double,
+        val avgOperations: Double,
+        val stdDevTime: Double,
+        val stdDevOps: Double,
+        val testsRun: Int
+    )
+
     private external fun runAdvanceSort(arraySize: Int): String
 
     companion object {

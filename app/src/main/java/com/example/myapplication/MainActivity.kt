@@ -27,5 +27,9 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, testCpuWithSorting::class.java)
             startActivity(intent)
         }
+        binding.memoryPerformanceButton.setOnClickListener{
+            val intent = Intent(this, MemoryPerformanceActivity::class.java )
+            startActivity(intent)
+        }
     }
 }

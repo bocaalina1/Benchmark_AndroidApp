@@ -14,7 +14,9 @@ class DeviceInfo : AppCompatActivity() {
         val infoTextView = findViewById<TextView>(R.id.device_info_text)
         val deviceInfoString = getDeviceInfoFromJNI()
         val appChaceInfo = getAplicationCacheInfo()
-        val finalReport = "$deviceInfoString\n\n$appChaceInfo"
+        val fromApi = getHardwareAndBoardNames()
+
+        val finalReport = "$deviceInfoString\n\n$appChaceInfo\n\n$fromApi\n\n"
         infoTextView.text = finalReport
     }
     private fun getAplicationCacheInfo(): String
@@ -29,6 +31,27 @@ class DeviceInfo : AppCompatActivity() {
     }
     private external fun getDeviceInfoFromJNI(): String
 
+    private fun getHardwareAndBoardNames(): String {
+        val hardware = android.os.Build.HARDWARE
+        val board = android.os.Build.BOARD
+
+        // Try to get the SoC model if we are on Android 12 (S) or newer
+        var socModel = "N/A"
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            socModel = android.os.Build.SOC_MODEL
+        }
+        val cacheDatabaseResult = sentInfoToC(hardware, board)
+
+        return """
+        Build.HARDWARE: $hardware
+        Build.BOARD: $board
+        Build.SOC_MODEL: $socModel
+        
+        --- CACHE DATABASE RESULT ---
+        $cacheDatabaseResult
+    """.trimIndent()
+    }
+    private external fun sentInfoToC(hardware: String, board: String):String
 
     companion object {
         init {

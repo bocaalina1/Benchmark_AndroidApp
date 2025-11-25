@@ -17,7 +17,6 @@
         android:paddingBottom="16dp">
 
         <!-- Title Section -->
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -75,33 +74,58 @@
                 android:fontFamily="monospace"
                 android:padding="16dp"
                 android:textColor="?android:attr/textColorPrimary"/>
-
         </androidx.cardview.widget.CardView>
 
-        <!-- Operations Chart -->
+        <!-- Bubble Sort Time Chart -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardCornerRadius="8dp"
             app:cardElevation="4dp"
             android:layout_marginBottom="16dp">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="8dp">
-
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Operations vs Array Size"
+                    android:text="Bubble Sort - Time vs Array Size"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="?android:attr/textColorPrimary"
                     android:gravity="center"
                     android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartBubbleTime"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
+        <!-- Bubble Sort Operations Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Bubble Sort - Operations vs Array Size"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
                 <com.github.mikephil.charting.charts.LineChart
                     android:id="@+id/chartOperations"
                     android:layout_width="match_parent"
@@ -110,30 +134,27 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Time Chart -->
+        <!-- Heap Sort Time Chart -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardCornerRadius="8dp"
             app:cardElevation="4dp"
             android:layout_marginBottom="16dp">
-
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="8dp">
-
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Time vs Array Size"
+                    android:text="Heap Sort - Time vs Array Size"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="?android:attr/textColorPrimary"
                     android:gravity="center"
                     android:layout_marginBottom="8dp"/>
-
                 <com.github.mikephil.charting.charts.LineChart
                     android:id="@+id/chartTime"
                     android:layout_width="match_parent"
@@ -141,5 +162,64 @@
                     android:visibility="gone"/>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
+
+        <!-- Heap Sort Operations Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Heap Sort - Operations vs Array Size"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartHeapOps"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Bubble Sort Baseline Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Bubble Sort - Time with Baseline Reference"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartBaseline"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
     </LinearLayout>
 </ScrollView>

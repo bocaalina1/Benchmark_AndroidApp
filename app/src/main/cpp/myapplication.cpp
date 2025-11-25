@@ -4,112 +4,126 @@
 #include <fstream>
 #include <vector>
 #include <map>
+#include <cctype>
+#include <algorithm> // Necesar pentru transform
 #include <sys/sysinfo.h>
 #include <sys/utsname.h>
 #include <unistd.h>
 #include <android/log.h>
 #include <sys/auxv.h>
+
 #define LOG_TAG "NativeBenchmark"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
 using namespace std;
 
-// Helper function to read a single line from a file
-string readFile(const string &path)
-{
+struct CpuCacheSpecs {
+    string humanName;
+    string l1;
+    string l2;
+    string l3;
+};
+
+map<string, CpuCacheSpecs> socDatabase = {
+        // === QUALCOMM SNAPDRAGON ===
+        {"sm8650",    {"Snapdragon 8 Gen 3", "96KB(I)/48KB(D)", "2MB(P)/512KB(E)", "12MB Shared"}},
+        {"pineapple", {"Snapdragon 8 Gen 3", "96KB(I)/48KB(D)", "2MB(P)/512KB(E)", "12MB Shared"}},
+        {"sm8550",    {"Snapdragon 8 Gen 2", "64KB", "1MB(P)/512KB(G)", "8MB Shared"}},
+        {"kalama",    {"Snapdragon 8 Gen 2", "64KB", "1MB(P)/512KB(G)", "8MB Shared"}},
+        {"sm8450",    {"Snapdragon 8 Gen 1", "64KB", "512KB", "6MB Shared"}},
+        {"taro",      {"Snapdragon 8 Gen 1", "64KB", "512KB", "6MB Shared"}},
+        {"sm8350",    {"Snapdragon 888",     "64KB", "512KB", "4MB Shared"}},
+        {"lahaina",   {"Snapdragon 888",     "64KB", "512KB", "4MB Shared"}},
+        {"sm8250",    {"Snapdragon 865/870", "64KB", "512KB", "4MB Shared"}},
+        {"kona",      {"Snapdragon 865/870", "64KB", "512KB", "4MB Shared"}},
+        {"sm8150",    {"Snapdragon 855",     "64KB", "256KB", "2MB Shared"}},
+        {"sdm845",    {"Snapdragon 845",     "64KB", "256KB", "2MB Shared"}},
+        {"sm7325",    {"Snapdragon 778G",    "64KB", "256KB", "2MB"}},
+
+        // === GOOGLE TENSOR ===
+        {"zuma",      {"Google Tensor G3",   "64KB", "512KB", "4MB(SLC)+8MB(L3)"}},
+        {"gs201",     {"Google Tensor G2",   "64KB", "256KB/512KB", "4MB(SLC)+8MB(L3)"}},
+        {"cheetah",   {"Google Tensor G2",   "64KB", "256KB/512KB", "4MB(SLC)+8MB(L3)"}},
+        {"panther",   {"Google Tensor G2",   "64KB", "256KB/512KB", "4MB(SLC)+8MB(L3)"}},
+        {"gs101",     {"Google Tensor (G1)", "64KB", "256KB/512KB", "4MB(SLC)+8MB(L3)"}},
+        {"oriole",    {"Google Tensor (G1)", "64KB", "256KB/512KB", "4MB(SLC)+8MB(L3)"}},
+        {"raven",     {"Google Tensor (G1)", "64KB", "256KB/512KB", "4MB(SLC)+8MB(L3)"}},
+
+        // === SAMSUNG EXYNOS ===
+        {"s5e9945",   {"Exynos 2400", "64KB", "1MB", "8MB Shared"}},
+        {"exynos2400",{"Exynos 2400", "64KB", "1MB", "8MB Shared"}},
+        {"s5e9925",   {"Exynos 2200", "64KB", "512KB", "4MB Shared"}},
+        {"exynos2200",{"Exynos 2200", "64KB", "512KB", "4MB Shared"}},
+        {"exynos2100",{"Exynos 2100", "64KB", "512KB", "4MB Shared"}},
+
+        // === MEDIATEK ===
+        {"mt6989",    {"Dimensity 9300", "64KB", "512KB", "10MB+ SLC"}},
+        {"mt6985",    {"Dimensity 9200", "64KB", "512KB", "8MB"}},
+        {"mt6983",    {"Dimensity 9000", "64KB", "512KB", "8MB"}},
+        {"mt6893",    {"Dimensity 1200", "64KB", "512KB", "2MB"}},
+};
+// Helper: Convert JString to C++ String
+string jstringToString(JNIEnv *env, jstring jStr) {
+    if (!jStr) return "";
+    const char *chars = env->GetStringUTFChars(jStr, NULL);
+    string str = chars;
+    env->ReleaseStringUTFChars(jStr, chars);
+    return str;
+}
+
+// Helper: Lowercase string
+string toLower(string s) {
+    transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return tolower(c); });
+    return s;
+}
+
+// Helper: Read single line
+string readFile(const string &path) {
     ifstream file(path);
-    if(!file.is_open())
-        return "";
+    if(!file.is_open()) return "";
     string line;
     getline(file, line);
     return line;
 }
 
-// ============================================================================
-// CACHE DETECTION METHODS - Multiple approaches for ARM and x86 compatibility
-// ============================================================================
-
-// Method 1: Try sysfs (works on x86 emulators, rarely on ARM devices)
+// Method 1: Sysfs
 string getCacheFromSysfs() {
     stringstream ss;
     bool foundAny = false;
 
     for (int i = 0; i < 4; ++i) {
         string base_path = "/sys/devices/system/cpu/cpu0/cache/index" + to_string(i);
-
         ifstream check(base_path + "/size");
-        if (!check.good()) {
-            continue;
-        }
+        if (!check.good()) continue;
 
         foundAny = true;
         string level = readFile(base_path + "/level");
         string size = readFile(base_path + "/size");
         string type = readFile(base_path + "/type");
-        string coherency = readFile(base_path + "/coherency_line_size");
 
         if (!level.empty() && !size.empty()) {
             ss << "L" << level << " Cache";
-            if (!type.empty()) {
-                ss << " (" << type << ")";
-            }
-            ss << ": " << size;
-            if (!coherency.empty()) {
-                ss << " (Line size: " << coherency << " bytes)";
-            }
-            ss << "\n";
+            if (!type.empty()) ss << " (" << type << ")";
+            ss << ": " << size << "\n";
         }
     }
-
-    if (foundAny) {
-        LOGI("Cache detection: sysfs method succeeded");
-    }
-
+    if (foundAny) LOGI("Cache detection: sysfs method succeeded");
     return ss.str();
 }
 
-// Method 2: Parse /proc/cpuinfo (works on many ARM devices)
+// Method 2: /proc/cpuinfo
 string getCacheFromCpuinfo() {
     stringstream ss;
     ifstream cpuinfo("/proc/cpuinfo");
-    if (!cpuinfo.is_open()) {
-        return "";
-    }
+    if (!cpuinfo.is_open()) return "";
 
     string line;
-    map<string, string> cacheInfo; // Use map to deduplicate
+    map<string, string> cacheInfo;
 
     while (getline(cpuinfo, line)) {
-        // Standard "cache size" field
-        if (line.find("cache size") != string::npos) {
+        if (line.find("cache size") != string::npos || line.find("cache_size") != string::npos) {
             size_t colonPos = line.find(":");
-            if (colonPos != string::npos) {
-                string value = line.substr(colonPos + 2);
-                cacheInfo["Cache size"] = value;
-            }
-        }
-
-        // ARM-specific cache fields
-        if (line.find("cache_size") != string::npos) {
-            size_t colonPos = line.find(":");
-            if (colonPos != string::npos) {
-                string value = line.substr(colonPos + 2);
-                cacheInfo["Cache size"] = value;
-            }
-        }
-
-        // Some ARM devices report separate I/D cache
-        if (line.find("I cache") != string::npos) {
-            size_t colonPos = line.find(":");
-            if (colonPos != string::npos) {
-                cacheInfo["L1 Instruction Cache"] = line.substr(colonPos + 2);
-            }
-        }
-        if (line.find("D cache") != string::npos) {
-            size_t colonPos = line.find(":");
-            if (colonPos != string::npos) {
-                cacheInfo["L1 Data Cache"] = line.substr(colonPos + 2);
-            }
+            if (colonPos != string::npos) cacheInfo["Cache size"] = line.substr(colonPos + 2);
         }
     }
 
@@ -119,331 +133,283 @@ string getCacheFromCpuinfo() {
             ss << entry.first << ": " << entry.second << "\n";
         }
     }
-
     return ss.str();
 }
 
-// Method 3: Use getauxval for ARM64-specific cache line sizes
+// Method 3: Auxval (ARM64)
 string getCacheFromAuxval() {
     stringstream ss;
-
 #ifdef __aarch64__
-    // ARM64-specific: Get cache line size from auxiliary vector
-    unsigned long dcache_line_size = getauxval(AT_DCACHEBSIZE);
-    unsigned long icache_line_size = getauxval(AT_ICACHEBSIZE);
-
-    if (dcache_line_size > 0 || icache_line_size > 0) {
-        LOGI("Cache detection: getauxval method succeeded (ARM64)");
-        if (dcache_line_size > 0) {
-            ss << "D-Cache Line Size: " << dcache_line_size << " bytes\n";
-        }
-        if (icache_line_size > 0) {
-            ss << "I-Cache Line Size: " << icache_line_size << " bytes\n";
-        }
-        return ss.str();
-    }
-#elif defined(__arm__)
-    // ARM32
-    unsigned long dcache_line_size = getauxval(AT_DCACHEBSIZE);
-    unsigned long icache_line_size = getauxval(AT_ICACHEBSIZE);
-
-    if (dcache_line_size > 0 || icache_line_size > 0) {
-        LOGI("Cache detection: getauxval method succeeded (ARM32)");
-        if (dcache_line_size > 0) {
-            ss << "D-Cache Line Size: " << dcache_line_size << " bytes\n";
-        }
-        if (icache_line_size > 0) {
-            ss << "I-Cache Line Size: " << icache_line_size << " bytes\n";
-        }
+    unsigned long dcache = getauxval(AT_DCACHEBSIZE);
+    unsigned long icache = getauxval(AT_ICACHEBSIZE);
+    if (dcache > 0 || icache > 0) {
+        LOGI("Cache detection: getauxval method succeeded");
+        if (dcache > 0) ss << "D-Cache Line Size: " << dcache << " bytes\n";
+        if (icache > 0) ss << "I-Cache Line Size: " << icache << " bytes\n";
         return ss.str();
     }
 #endif
-
     return "";
 }
 
-// Method 4: Try device-tree on ARM
+// Method 4: Device Tree
 string getCacheFromDeviceTree() {
     stringstream ss;
     bool foundAny = false;
-
-    // Common device tree paths for cache information
     vector<string> dt_paths = {
             "/proc/device-tree/cpus/cpu@0/d-cache-size",
             "/proc/device-tree/cpus/cpu@0/i-cache-size",
-            "/proc/device-tree/cpus/cpu@0/cache-size",
             "/proc/device-tree/cpus/cpu@0/l2-cache-size"
     };
 
     for (const auto& path : dt_paths) {
         ifstream file(path, ios::binary);
         if (file.is_open()) {
-            // Device tree values are 32-bit big-endian integers
             uint32_t value = 0;
             file.read(reinterpret_cast<char*>(&value), sizeof(value));
-
             if (file.gcount() == sizeof(value) && value > 0) {
-                // Convert from big-endian to host byte order
-                value = __builtin_bswap32(value);
-
-                // Determine cache type from path
-                string cache_type = "Cache";
-                if (path.find("d-cache") != string::npos) {
-                    cache_type = "L1 D-Cache";
-                } else if (path.find("i-cache") != string::npos) {
-                    cache_type = "L1 I-Cache";
-                } else if (path.find("l2-cache") != string::npos) {
-                    cache_type = "L2 Cache";
-                }
-
-                ss << cache_type << ": " << (value / 1024) << " KB\n";
+                value = __builtin_bswap32(value); // Big Endian to Host
+                string name = (path.find("d-cache") != string::npos) ? "L1 D-Cache" :
+                              (path.find("i-cache") != string::npos) ? "L1 I-Cache" : "L2 Cache";
+                ss << name << ": " << (value / 1024) << " KB\n";
                 foundAny = true;
             }
-            file.close();
         }
     }
-
-    if (foundAny) {
-        LOGI("Cache detection: device-tree method succeeded");
-    }
-
+    if (foundAny) LOGI("Cache detection: device-tree method succeeded");
     return ss.str();
 }
 
-// Method 5: Provide typical values for known ARM processors
-string getCacheFromKnownCpus(const string& hardware) {
+// Method 5: Database Lookup
+// Board is optional (default empty) to allow calling with just hardware
+string lookupCacheInfo(string hardware, string board = "") {
+    string hwLower = toLower(hardware);
+    string bdLower = toLower(board);
+
     stringstream ss;
+    for (auto const& [key, val] : socDatabase) {
+        // Check if key exists in either hardware OR board string
+        if ((!bdLower.empty() && bdLower.find(key) != string::npos) ||
+            (!hwLower.empty() && hwLower.find(key) != string::npos)) {
 
-    // Map of known CPU families to their typical cache configurations
-    map<string, string> knownCaches = {
-            {"Qualcomm", "Typical: L1: 64KB/core (32KB I + 32KB D), L2: 256KB-512KB/cluster, L3: 2-4MB"},
-            {"Snapdragon", "Typical: L1: 64KB/core, L2: 256KB-512KB/cluster, L3: 2-4MB shared"},
-            {"Exynos", "Typical: L1: 64KB/core, L2: 512KB-2MB/cluster, L3: 2-4MB"},
-            {"Kirin", "Typical: L1: 64KB/core, L2: 256KB-512KB, L3: 4MB"},
-            {"MediaTek", "Typical: L1: 32-64KB/core, L2: 256KB-512KB, L3: 1-2MB"},
-            {"Tensor", "Typical: L1: 64KB/core, L2: 512KB-1MB, L3: 8MB"},
-            {"Dimensity", "Typical: L1: 64KB/core, L2: 512KB/cluster, L3: 2-4MB"}
-    };
-
-    for (const auto& entry : knownCaches) {
-        if (hardware.find(entry.first) != string::npos) {
-            LOGI("Cache detection: using typical values for %s", entry.first.c_str());
-            ss << entry.second << "\n";
-            ss << "(Note: Exact values vary by specific model)\n";
+            ss << ">> DATABASE MATCH <<\n";
+            ss << "SoC: " << val.humanName << "\n";
+            ss << "L1: " << val.l1 << " | L2: " << val.l2 << " | L3: " << val.l3 << "\n";
             return ss.str();
         }
     }
-
     return "";
 }
 
-// Main cache info function that tries all methods
-string getCacheInfo(const string& hardware = "") {
+// Main aggregator
+string getCacheInfo(const string& hardware) {
     stringstream ss;
     ss << "\n=== CACHE INFO ===\n";
 
-    string result;
-    bool foundPrecise = false;
+    string res = getCacheFromSysfs();
+    if (res.empty()) res = getCacheFromCpuinfo();
 
-    // Method 1: Try sysfs first (most detailed when available)
-    result = getCacheFromSysfs();
-    if (!result.empty()) {
-        ss << result;
-        return ss.str();
-    }
+    ss << res;
+    ss << getCacheFromAuxval();
+    ss << getCacheFromDeviceTree();
 
-    // Method 2: Try /proc/cpuinfo parsing
-    result = getCacheFromCpuinfo();
-    if (!result.empty()) {
-        ss << result;
-        foundPrecise = true;
-    }
-
-    // Method 3: Try ARM-specific auxiliary vector
-    result = getCacheFromAuxval();
-    if (!result.empty()) {
-        if (foundPrecise) {
-            ss << "\nAdditional info:\n";
-        }
-        ss << result;
-        foundPrecise = true;
-    }
-
-    // Method 4: Try device tree
-    result = getCacheFromDeviceTree();
-    if (!result.empty()) {
-        if (foundPrecise) {
-            ss << "\nFrom device tree:\n";
-        }
-        ss << result;
-        foundPrecise = true;
-    }
-
-    // If we found some precise info, add typical values as reference
-    if (foundPrecise && !hardware.empty()) {
-        string typical = getCacheFromKnownCpus(hardware);
-        if (!typical.empty()) {
-            ss << "\nReference values:\n" << typical;
-        }
-        return ss.str();
-    }
-
-    // Method 5: Last resort - use typical values for known CPUs
+    // Always try database look up as supplement if hardware name is known
     if (!hardware.empty()) {
-        result = getCacheFromKnownCpus(hardware);
-        if (!result.empty()) {
-            ss << "Kernel does not expose cache details for this device.\n";
-            ss << result;
-            return ss.str();
-        }
+        string dbRes = lookupCacheInfo(hardware, "");
+        if (!dbRes.empty()) ss << "\n" << dbRes;
     }
-
-    // Nothing worked at all
-    ss << "Cache information not available.\n";
-    ss << "This is common on ARM devices where manufacturers don't expose\n";
-    ss << "cache hierarchy through standard kernel interfaces.\n";
-
-    LOGI("Cache detection: all methods failed");
 
     return ss.str();
 }
 
-// ============================================================================
-// CPU INFORMATION
-// ============================================================================
-
-string getCPUInfo() {
+string getCPUInfo(string& outHardware) {
     stringstream ss;
     ss << "=== CPU INFO ===\n";
 
     ifstream cpuinfo("/proc/cpuinfo");
-    if (!cpuinfo.is_open()) {
-        ss << "Error: Could not open /proc/cpuinfo\n";
-        return ss.str();
-    }
-
-    string line;
-    string hardware, model;
-    vector<string> cache_lines;
+    string line, model;
 
     while (getline(cpuinfo, line)) {
-        if (hardware.empty() && line.find("Hardware") != string::npos) {
-            hardware = line.substr(line.find(":") + 2);
-        } else if (model.empty() && line.find("model name") != string::npos) {
-            model = line.substr(line.find(":") + 2);
+        if (outHardware.empty() && line.find("Hardware") != string::npos) {
+            size_t pos = line.find(":");
+            if(pos != string::npos) outHardware = line.substr(pos + 2);
         }
-
-        // Collect cache-related lines for backup display
-        if (line.find("cache") != string::npos || line.find("Cache") != string::npos) {
-            if(line.find(":") != string::npos) {
-                cache_lines.push_back(line);
-            }
+        if (model.empty() && line.find("model name") != string::npos) {
+            size_t pos = line.find(":");
+            if(pos != string::npos) model = line.substr(pos + 2);
         }
     }
 
-    // Build report
+    ss << "Hardware: " << outHardware << "\n";
+    if(!model.empty()) ss << "Model: " << model << "\n";
     ss << "Cores: " << sysconf(_SC_NPROCESSORS_ONLN) << "\n";
 
-    if (!hardware.empty()) {
-        ss << "Hardware: " << hardware << "\n";
-    }
-    if (!model.empty()) {
-        ss << "Model: " << model << "\n";
-    }
-
-    struct utsname unameData;
-    if (uname(&unameData) == 0) {
-        ss << "Architecture: " << unameData.machine << "\n";
-    }
-
     return ss.str();
 }
 
-// ============================================================================
-// MEMORY INFORMATION
-// ============================================================================
-
-string getMemoryInfo()
-{
+string getMemoryInfo() {
     stringstream ss;
     ss << "\n=== MEMORY INFO ===\n";
-
     ifstream meminfo("/proc/meminfo");
-    if (!meminfo.is_open()) {
-        ss << "Error: Could not open /proc/meminfo\n";
-        return ss.str();
-    }
-
     string line;
-    long totalRam = 0, freeRam = 0, availableRam = 0, buffers = 0, cached = 0;
+    long total = 0, avail = 0;
 
-    while(getline(meminfo, line))
-    {
-        if(line.find("MemTotal:") == 0)
-            sscanf(line.c_str(), "MemTotal: %ld kB", &totalRam);
-        else if(line.find("MemFree:") == 0)
-            sscanf(line.c_str(), "MemFree: %ld kB", &freeRam);
-        else if(line.find("MemAvailable:") == 0)
-            sscanf(line.c_str(), "MemAvailable: %ld kB", &availableRam);
-        else if(line.find("Buffers:") == 0)
-            sscanf(line.c_str(), "Buffers: %ld kB", &buffers);
-        else if(line.find("Cached:") == 0)
-            sscanf(line.c_str(), "Cached: %ld kB", &cached);
+    while(getline(meminfo, line)) {
+        if(line.find("MemTotal:") == 0) sscanf(line.c_str(), "MemTotal: %ld kB", &total);
+        else if(line.find("MemAvailable:") == 0) sscanf(line.c_str(), "MemAvailable: %ld kB", &avail);
     }
-    meminfo.close();
-
-    // Convert from kB to MB
-    totalRam /= 1024;
-    freeRam /= 1024;
-    availableRam /= 1024;
-    long usedRam = totalRam - availableRam;
-
-    ss << "Total RAM: " << totalRam << " MB\n";
-    ss << "Used RAM: " << usedRam << " MB\n";
-    ss << "Available RAM: " << availableRam << " MB\n";
-    ss << "Free RAM (actual): " << freeRam << " MB\n";
-
+    ss << "Total RAM: " << total/1024 << " MB\nAvailable: " << avail/1024 << " MB\n";
     return ss.str();
 }
 
-// ============================================================================
-// JNI EXPORT FUNCTION
-// ============================================================================
-
+// JNI EXPORT 1: Get All Info
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_example_myapplication_DeviceInfo_getDeviceInfoFromJNI(JNIEnv *env, jobject /* this */) {
+Java_com_example_myapplication_DeviceInfo_getDeviceInfoFromJNI(JNIEnv *env, jobject) {
+    string hardware; // Will be filled by getCPUInfo
+    string report = getCPUInfo(hardware);
+    report += getMemoryInfo();
+    report += getCacheInfo(hardware);
 
-    // Get CPU info first (contains hardware name)
-    string cpuInfo = getCPUInfo();
+    LOGI("%s", report.c_str());
+    return env->NewStringUTF(report.c_str());
+}
+// Helper to parse a single token like "48KB(D)" or "10MB" into bytes
+long parseSimpleToken(string token) {
+    long val = 0;
+    string unit = "";
 
-    // Extract hardware name for enhanced cache detection
-    string hardware;
-    ifstream cpuinfo("/proc/cpuinfo");
-    string line;
-    while (getline(cpuinfo, line)) {
-        if (line.find("Hardware") != string::npos) {
-            size_t colonPos = line.find(":");
-            if (colonPos != string::npos) {
-                hardware = line.substr(colonPos + 2);
+    // Scan for digits
+    size_t i = 0;
+    while(i < token.length() && !isdigit(token[i])) i++; // Skip non-digits
+    if (i == token.length()) return 0;
+
+    char* endPtr;
+    val = strtol(token.c_str() + i, &endPtr, 10);
+
+    // Check multiplier in the rest of the string
+    string suffix = string(endPtr);
+    if (suffix.find("MB") != string::npos || suffix.find("M") != string::npos) {
+        val *= 1024 * 1024;
+    } else if (suffix.find("KB") != string::npos || suffix.find("K") != string::npos) {
+        val *= 1024;
+    }
+    return val;
+}
+
+// MAIN PARSER
+long parseSmart(string raw, int level) {
+    if (raw.empty()) return 0;
+
+    // 1. Replace separators '/' and '+' with spaces for easier splitting
+    replace(raw.begin(), raw.end(), '/', ' ');
+    replace(raw.begin(), raw.end(), '+', ' ');
+
+    stringstream ss(raw);
+    string segment;
+
+    long bestValue = 0;
+    bool foundSpecific = false;
+
+    while (ss >> segment) {
+        long val = parseSimpleToken(segment);
+        if (val == 0) continue;
+
+        // DECISION LOGIC BASED ON LEVEL
+
+        if (level == 1) {
+            // === L1 CACHE STRATEGY ===
+            // We want "D" (Data). Ignore "I" (Instruction).
+            if (segment.find("(D)") != string::npos || segment.find("D") != string::npos) {
+                return val; // Found explicitly marked Data cache, return immediately
             }
+            if (segment.find("(I)") != string::npos || segment.find("I") != string::npos) {
+                continue; // Ignore instruction cache
+            }
+            // If neither I nor D is marked, keep the value (e.g., "64KB")
+            bestValue = val;
+        }
+        else if (level == 2) {
+            // === L2 CACHE STRATEGY ===
+            // We want "(P)" (Performance core) or simply the LARGEST value.
+            // Example: "1MB(P)/512KB(E)" -> We want 1MB.
+            if (segment.find("(P)") != string::npos) {
+                return val; // Found explicit Performance cache
+            }
+            // Keep track of the largest number found so far
+            if (val > bestValue) bestValue = val;
+        }
+        else if (level == 3) {
+            // === L3 CACHE STRATEGY ===
+            // We want "L3". We usually ignore "SLC" if L3 is present.
+            // Example: "4MB(SLC)+8MB(L3)" -> We want 8MB.
+            if (segment.find("L3") != string::npos) {
+                // If we explicitly see L3, this is definitely the one.
+                bestValue = val;
+                foundSpecific = true;
+            } else if (!foundSpecific) {
+                // If we haven't found explicit "L3" yet, take the largest number
+                // (This handles "8MB Shared" or "10MB")
+                if (val > bestValue) bestValue = val;
+            }
+        }
+    }
+    return bestValue;
+}
+// JNI EXPORT 2: Manual Database Lookup
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_example_myapplication_DeviceInfo_sentInfoToC(JNIEnv *env, jobject, jstring jHardware, jstring jBoard) {
+    string hardware = jstringToString(env, jHardware);
+    string board = jstringToString(env, jBoard);
+
+    string result = lookupCacheInfo(hardware, board);
+
+    if (result.empty()) result = "No database match for this device.";
+    LOGI("Manual Lookup Result: %s", result.c_str());
+
+    return env->NewStringUTF(result.c_str());
+}
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_example_myapplication_MemoryPerformanceActivity_getCacheSizeBytes(JNIEnv *env, jobject, jstring jHardware, jstring jBoard)
+{
+    const char *boardCons = env->GetStringUTFChars(jBoard,0);
+    const char *hardwareCons = env->GetStringUTFChars(jHardware,0);
+
+    string board = toLower(string(boardCons));
+    string hardware = toLower(string(hardwareCons));
+
+    env->ReleaseStringUTFChars(jBoard,boardCons);
+    env->ReleaseStringUTFChars(jHardware,hardwareCons);
+
+    long l1Size = 0, l2Size = 0, l3Size = 0;
+    bool found = false;
+
+    // Iterate through Global Database
+    for (auto const& [key, val] : socDatabase) {
+        // Check if key is inside board or hardware string
+        if (board.find(key) != string::npos || hardware.find(key) != string::npos) {
+            l1Size = parseSmart(val.l1, 1);
+            l2Size = parseSmart(val.l2, 2);
+            l3Size = parseSmart(val.l3, 3);
+            found = true;
             break;
         }
     }
-    cpuinfo.close();
 
-    // Get memory info
-    string memInfo = getMemoryInfo();
+    if (!found) {
+        // Defaults if not in database
+        l1Size = 32 * 1024;
+        l2Size = 512 * 1024; // Fixed 513 typo
+        l3Size = 2 * 1024 * 1024;
+    }
 
-    // Get cache info with hardware name for fallback detection
-    string cacheInfo = getCacheInfo(hardware);
+    jlongArray res = env->NewLongArray(3);
+    if(res == NULL) return NULL;
 
-    // Combine all information
-    string finalReport = cpuInfo + "\n" + memInfo + "\n" + cacheInfo;
+    jlong tempBuffer[3];
+    tempBuffer[0] = l1Size;
+    tempBuffer[1] = l2Size;
+    tempBuffer[2] = l3Size;
 
-    // Log to Android logcat for debugging
-    LOGI("=== Device Info Report ===");
-    LOGI("%s", finalReport.c_str());
-
-    // Return to Java/Kotlin
-    return env->NewStringUTF(finalReport.c_str());
+    env->SetLongArrayRegion(res, 0, 3, tempBuffer);
+    return res;
 }
