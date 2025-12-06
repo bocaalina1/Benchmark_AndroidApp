@@ -14,6 +14,8 @@ import kotlin.math.sqrt
 import android.widget.TableRow
 import android.widget.TextView
 import android.view.Gravity
+import android.view.View
+
 data class BenchmarkResult(val n: Long, val timeBad: Double, val timeGood: Double)
 class MemoryPerformanceActivity : AppCompatActivity() {
 
@@ -48,6 +50,7 @@ class MemoryPerformanceActivity : AppCompatActivity() {
     }
 
     private fun runFullBenchmark(detectedCacheSize: Long) {
+        binding.progressBar.visibility = View.VISIBLE
         binding.btnStart.isEnabled = false
         binding.statusText.text = "Running Benchmark..."
 
@@ -57,7 +60,7 @@ class MemoryPerformanceActivity : AppCompatActivity() {
             val tableResults = ArrayList<BenchmarkResult>()
 
             // We test sizes relative to the detected cache (e.g., 0.5x the size, 2.0x the size)
-            val sizeMultipliers = listOf(0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 4.0)
+            val sizeMultipliers = listOf(0.1, 0.25, 0.5, 0.75, 1.0, 1.25,1.5,1.75, 2.0, 4.0)
 
             for (multiplier in sizeMultipliers) {
                 val targetBytes = (detectedCacheSize * multiplier).toLong()
@@ -65,8 +68,6 @@ class MemoryPerformanceActivity : AppCompatActivity() {
                 // Math: N = sqrt(Bytes / 24).
                 // 24 comes from: 3 matrices * 8 bytes (sizeof long)
                 val n = sqrt(targetBytes.toDouble() / 24.0).toLong()
-
-                if (n < 10) continue // Skip tiny matrices
 
                 runOnUiThread {
                     binding.statusText.text =
@@ -96,12 +97,14 @@ class MemoryPerformanceActivity : AppCompatActivity() {
                         avgIJK,
                         avgIKJ
                     ))
+
             }
 
             runOnUiThread {
                 updateChartData(entriesIJK, entriesIKJ)
                 binding.btnStart.isEnabled = true
                 binding.statusText.text = "Done! Check the graph."
+                binding.progressBar.visibility = View.GONE
                 populateTable(tableResults)
             }
 

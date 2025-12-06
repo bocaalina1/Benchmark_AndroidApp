@@ -80,6 +80,15 @@ Java_com_example_myapplication_MemoryPerformanceActivity_runMatrixBenchmark(JNIE
     duration<double> time1 = end1 - start1;
     duration<double> time2 = end2 - start2;
 
+    for (int i = 0; i < cacheSize; i++) {
+        free(A[i]);
+        free(B[i]);
+        free(C[i]);
+    }
+    free(A);
+    free(B);
+    free(C);
+
     jdoubleArray  result = env->NewDoubleArray(2);
     jdouble times[2] = {time1.count(), time2.count()};
     env->SetDoubleArrayRegion(result, 0, 2, times);

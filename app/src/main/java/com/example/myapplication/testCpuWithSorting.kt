@@ -214,24 +214,6 @@ class testCpuWithSorting : AppCompatActivity() {
                 speedup
             ))
         }
-
-        // Find best bubble sort size
-        val bestBubbleResult = bubbleResults.minByOrNull { it.avgTimeMs }
-        val bestBubbleTime = bestBubbleResult?.avgTimeMs ?: 0.0
-
-        sb.append("\nBASELINE ANALYSIS\n")
-        sb.append("─────────────────────────────────\n")
-        sb.append("Best Bubble: ${bestBubbleResult?.arraySize}(${bestBubbleTime.toLong()}ms)\n\n")
-        sb.append("Size   Variance\n")
-
-        for (result in bubbleResults) {
-            val variance = ((result.avgTimeMs - bestBubbleTime) / bestBubbleTime * 100)
-            sb.append(String.format("%-6d %+6.1f%%\n",
-                result.arraySize,
-                variance
-            ))
-        }
-
         binding.resultsTextview.text = sb.toString()
     }
 
