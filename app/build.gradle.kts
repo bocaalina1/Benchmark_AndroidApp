@@ -75,7 +75,7 @@ dependencies {
 
     // MPAndroidChart for graphs
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
-
+    implementation("com.gorisse.thomas.sceneform:sceneform:1.21.0")
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

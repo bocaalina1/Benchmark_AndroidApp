@@ -1,28 +1,49 @@
 package com.example.myapplication
 
 import android.os.Bundle
+import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import com.example.myapplication.databinding.ActivityOpenglBinding // Import the new binding class
 
 class OpenGLActivity : AppCompatActivity() {
 
+    private lateinit var glSurfaceView: MyGLSurfaceView
 
-    private lateinit var binding: ActivityOpenglBinding
-
-    public override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        binding = ActivityOpenglBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        Log.i("OpenGLActivity", "Creating OpenGL Activity")
+
+        try {
+            // Initialize your custom GLSurfaceView
+            glSurfaceView = MyGLSurfaceView(this)
+            setContentView(glSurfaceView)
+
+            Log.i("OpenGLActivity", "GLSurfaceView created and set")
+        } catch (e: Exception) {
+            Log.e("OpenGLActivity", "Failed to create GLSurfaceView: ${e.message}")
+            e.printStackTrace()
+            finish()
+        }
     }
 
-   override fun onResume() {
+    override fun onResume() {
         super.onResume()
-        binding.glSurface.onResume()
+        if (::glSurfaceView.isInitialized) {
+            glSurfaceView.onResume()
+            Log.i("OpenGLActivity", "GLSurfaceView resumed")
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        binding.glSurface.onPause()
+        if (::glSurfaceView.isInitialized) {
+            glSurfaceView.onPause()
+            Log.i("OpenGLActivity", "GLSurfaceView paused")
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.i("OpenGLActivity", "Activity destroyed")
     }
 }
