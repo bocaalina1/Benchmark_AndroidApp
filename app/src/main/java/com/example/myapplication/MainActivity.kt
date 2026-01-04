@@ -23,6 +23,17 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, DeviceInfo::class.java)
             startActivity(intent)
         }
-
+        binding.testCpuButton.setOnClickListener {
+            val intent = Intent(this, testCpuWithSorting::class.java)
+            startActivity(intent)
+        }
+        binding.memoryPerformanceButton.setOnClickListener {
+            val intent = Intent(this, MemoryPerformanceActivity::class.java)
+            startActivity(intent)
+        }
+        binding.openGLButton.setOnClickListener {
+            val intent = Intent(this, OpenGLActivity::class.java)
+            startActivity(intent)
+        }
     }
 }

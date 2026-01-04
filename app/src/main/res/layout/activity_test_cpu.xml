@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground"
+    android:clipToPadding="false">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="50dp"
+        android:paddingBottom="16dp">
+
+        <!-- Title Section -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:gravity="center"
+            android:text="Sorting Algorithm Benchmark"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="24sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Compare Bubble Sort vs Heap Sort"
+            android:textSize="14sp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:gravity="center"
+            android:layout_marginBottom="24dp"/>
+
+        <!-- Start Button -->
+        <Button
+            android:id="@+id/startBenchmarkButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Start Benchmark"
+            android:textSize="16sp"
+            android:padding="12dp"
+            android:backgroundTint="#4CAF50"
+            android:textColor="?android:attr/textColorPrimary"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Progress Bar -->
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Results Text View -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <TextView
+                android:id="@+id/resultsTextview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Press 'Start Benchmark' to begin testing.\n\nThis will run sorting algorithms with different array sizes."
+                android:textSize="12sp"
+                android:fontFamily="monospace"
+                android:padding="16dp"
+                android:textColor="?android:attr/textColorPrimary"/>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Bubble Sort Time Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Bubble Sort - Time vs Array Size"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartBubbleTime"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Bubble Sort Operations Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Bubble Sort - Operations vs Array Size"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartOperations"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Heap Sort Time Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Heap Sort - Time vs Array Size"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartTime"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Heap Sort Operations Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Heap Sort - Operations vs Array Size"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartHeapOps"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Bubble Sort Baseline Chart -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            android:layout_marginBottom="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Bubble Sort - Time with Baseline Reference"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:gravity="center"
+                    android:layout_marginBottom="8dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/chartBaseline"
+                    android:layout_width="match_parent"
+                    android:layout_height="300dp"
+                    android:visibility="gone"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+</ScrollView>
